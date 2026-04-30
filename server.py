@@ -2,6 +2,7 @@ import os
 import sys
 import json
 import asyncio
+import threading
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, StreamingResponse
 from contextlib import asynccontextmanager
@@ -87,35 +88,59 @@ async def analyze(decision: str):
         }
         
         final_synthesis = {}
+        loop = asyncio.get_event_loop()
+        queue: asyncio.Queue = asyncio.Queue()
+        stop_event = threading.Event()
+
+        def stream_in_executor():
+            try:
+                for event in oracle_graph.stream(initial_state):
+                    if stop_event.is_set():
+                        break
+                    loop.call_soon_threadsafe(queue.put_nowait, ("event", event))
+                loop.call_soon_threadsafe(queue.put_nowait, ("done", None))
+            except Exception as e:
+                loop.call_soon_threadsafe(queue.put_nowait, ("error", e))
         
         try:
-            # We use LangGraph's .stream() to run each agent step in sequence and capture its real-time output
-            for event in oracle_graph.stream(initial_state):
-                for node_name, state_update in event.items():
-                    # Handle any captured errors from the graph execution
-                    if "error" in state_update and state_update["error"]:
-                        yield f'data: {json.dumps({"step": node_name, "status": "error", "error": state_update["error"]})}\n\n'
-                        return
-                    
-                    # Map the node name to the actual data key in the state dict
-                    data_key = node_name
-                    if node_name == "cartograph": data_key = "cartography"
-                    elif node_name == "challenge": data_key = "devils_advocate"
-                    elif node_name == "simulate": data_key = "simulation"
-                    
-                    step_result = state_update.get(data_key, {})
-                    
-                    # Store the final synthesis to yield at the very end
-                    if node_name == "synthesize":
-                        final_synthesis = step_result
+            stream_future = loop.run_in_executor(None, stream_in_executor)
+            while True:
+                kind, payload = await queue.get()
+                if kind == "event":
+                    for node_name, state_update in payload.items():
+                        # Handle any captured errors from the graph execution
+                        if "error" in state_update and state_update["error"]:
+                            yield f'data: {json.dumps({"step": node_name, "status": "error", "error": state_update["error"]})}\n\n'
+                            stop_event.set()
+                            return
                         
-                    yield f'data: {json.dumps({"step": node_name, "status": "complete", "data": step_result})}\n\n'
-                    # Small non-blocking sleep to ensure smooth buffering
-                    await asyncio.sleep(0.01)
-                    
-            # Final completion event
-            yield f'data: {json.dumps({"step": "complete", "status": "complete", "data": final_synthesis})}\n\n'
-            
+                        # Map the node name to the actual data key in the state dict
+                        data_key = node_name
+                        if node_name == "cartograph": data_key = "cartography"
+                        elif node_name == "challenge": data_key = "devils_advocate"
+                        elif node_name == "simulate": data_key = "simulation"
+                        
+                        step_result = state_update.get(data_key, {})
+                        
+                        # Store the final synthesis to yield at the very end
+                        if node_name == "synthesize":
+                            final_synthesis = step_result
+                            
+                        yield f'data: {json.dumps({"step": node_name, "status": "complete", "data": step_result})}\n\n'
+                        # Small non-blocking sleep to ensure smooth buffering
+                        await asyncio.sleep(0.01)
+                elif kind == "error":
+                    yield f'data: {json.dumps({"step": "system", "status": "error", "error": str(payload)})}\n\n'
+                    stop_event.set()
+                    return
+                elif kind == "done":
+                    # Final completion event
+                    yield f'data: {json.dumps({"step": "complete", "status": "complete", "data": final_synthesis})}\n\n'
+                    break
+            await stream_future
+        except asyncio.CancelledError:
+            stop_event.set()
+            raise
         except Exception as e:
             yield f'data: {json.dumps({"step": "system", "status": "error", "error": str(e)})}\n\n'
 
