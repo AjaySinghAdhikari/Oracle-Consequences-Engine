@@ -63,12 +63,13 @@ app.add_middleware(
 )
 
 # Mount static files
-app.mount("/static", StaticFiles(directory="frontend"), name="static")
+frontend_dir = os.path.join(os.path.dirname(__file__), "frontend")
+app.mount("/static", StaticFiles(directory=frontend_dir), name="static")
 
 @app.get("/", response_class=HTMLResponse)
 async def read_root():
     """Serves the main frontend UI."""
-    with open("frontend/index.html", "r", encoding="utf-8") as f:
+    with open(os.path.join(frontend_dir, "index.html"), "r", encoding="utf-8") as f:
         return f.read()
 
 @app.get("/api/analyze")
@@ -115,10 +116,15 @@ async def analyze(decision: str):
                             return
                         
                         # Map the node name to the actual data key in the state dict
-                        data_key = node_name
-                        if node_name == "cartograph": data_key = "cartography"
-                        elif node_name == "challenge": data_key = "devils_advocate"
-                        elif node_name == "simulate": data_key = "simulation"
+                        key_map = {
+                            "cartograph": "cartography",
+                            "historian": "precedents",
+                            "simulate": "simulation",
+                            "challenge": "devils_advocate",
+                            "reframe": "reframe",
+                            "synthesize": "synthesis",
+                        }
+                        data_key = key_map.get(node_name, node_name)
                         
                         step_result = state_update.get(data_key, {})
                         

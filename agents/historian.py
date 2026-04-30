@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from config import LLM_MODEL
+from memory.vector_store import OracleVectorStore
 from tools.web_tool import search_web
 from tools.arxiv_tool import search_arxiv
 
@@ -51,11 +52,30 @@ def find_historical_precedents(decision: str, domains: list) -> dict:
     # Format context for the LLM
     context = "Web Results:\n"
     for r in web_results:
-        context += f"- Title: {r['title']}\n  URL: {r['url']}\n  Content: {r['content']}\n\n"
+        context += (
+            f"- Title: {r.get('title', '')}\n"
+            f"  URL: {r.get('url', '')}\n"
+            f"  Content: {r.get('content', '')}\n\n"
+        )
     
     context += "ArXiv Results:\n"
     for r in arxiv_results:
-        context += f"- Title: {r['title']}\n  URL: {r['url']}\n  Summary: {r['summary']}\n\n"
+        context += (
+            f"- Title: {r.get('title', '')}\n"
+            f"  URL: {r.get('url', '')}\n"
+            f"  Summary: {r.get('summary', '')}\n\n"
+        )
+
+    vector_store = OracleVectorStore()
+    similar_cases = vector_store.find_similar_decisions(decision, n_results=5)
+    if similar_cases:
+        context += "Memory Results:\n"
+        for case in similar_cases:
+            context += (
+                f"- Document: {case.get('document', '')}\n"
+                f"  Metadata: {case.get('metadata', {})}\n"
+                f"  Distance: {case.get('distance', '')}\n\n"
+            )
 
     llm = ChatGroq(model=LLM_MODEL, temperature=0.2)
     parser = JsonOutputParser(pydantic_object=HistorianOutput)
@@ -76,8 +96,23 @@ Search Context:
     )
     
     chain = prompt | llm | parser
-    return chain.invoke({
+    result = chain.invoke({
         "decision": decision, 
         "domains": ", ".join(domains) if domains else "",
         "context": context
     })
+    
+    for precedent in result.get("precedents", []):
+        vector_store.add_decision_case(
+            decision=precedent.get("what_was_decided") or precedent.get("case_description") or decision,
+            outcome=precedent.get("what_actually_happened") or precedent.get("key_lesson") or "",
+            domain=", ".join(domains) if domains else "",
+            metadata={
+                "case_description": precedent.get("case_description", ""),
+                "what_was_decided": precedent.get("what_was_decided", ""),
+                "key_lesson": precedent.get("key_lesson", ""),
+                "source_url": precedent.get("source_url", ""),
+            },
+        )
+    
+    return result

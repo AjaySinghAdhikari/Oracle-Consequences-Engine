@@ -50,7 +50,7 @@ def node_cartograph(state: OracleState) -> dict:
 
 def node_historian(state: OracleState) -> dict:
     """Executes the historian agent to find precedents."""
-    if state.get("error"): return {}
+    if state.get("error"): return {"error": state["error"]}
     try:
         domains = state.get("cartography", {}).get("domains", [])
         precedents = with_retry(find_historical_precedents, state["decision"], domains)
@@ -60,7 +60,7 @@ def node_historian(state: OracleState) -> dict:
 
 def node_simulate(state: OracleState) -> dict:
     """Executes the simulator agent to generate consequences."""
-    if state.get("error"): return {}
+    if state.get("error"): return {"error": state["error"]}
     try:
         simulation = with_retry(simulate_consequences, state["decision"], state["cartography"], state["precedents"])
         return {"simulation": simulation, "current_step": "simulate"}
@@ -69,7 +69,7 @@ def node_simulate(state: OracleState) -> dict:
 
 def node_challenge(state: OracleState) -> dict:
     """Executes the devil's advocate agent to challenge assumptions."""
-    if state.get("error"): return {}
+    if state.get("error"): return {"error": state["error"]}
     try:
         devils_advocate = with_retry(challenge_decision, state["decision"], state["cartography"], state["simulation"])
         return {"devils_advocate": devils_advocate, "current_step": "challenge"}
@@ -78,7 +78,7 @@ def node_challenge(state: OracleState) -> dict:
 
 def node_reframe(state: OracleState) -> dict:
     """Executes the reframer agent to find lateral alternatives."""
-    if state.get("error"): return {}
+    if state.get("error"): return {"error": state["error"]}
     try:
         reframe = with_retry(reframe_decision, state["decision"], state["cartography"], state["devils_advocate"])
         return {"reframe": reframe, "current_step": "reframe"}
@@ -87,7 +87,7 @@ def node_reframe(state: OracleState) -> dict:
 
 def node_synthesize(state: OracleState) -> dict:
     """Executes the synthesizer agent to generate the final oracle verdict."""
-    if state.get("error"): return {}
+    if state.get("error"): return {"error": state["error"]}
     try:
         synthesis = with_retry(synthesize,
             state["decision"],
