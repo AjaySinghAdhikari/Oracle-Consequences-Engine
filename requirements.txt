@@ -1,0 +1,14 @@
+langgraph
+langchain
+langchain-groq
+langchain-core
+chromadb
+fastapi
+uvicorn
+python-multipart
+python-dotenv
+tavily-python
+arxiv
+trafilatura
+fpdf2
+pydantic

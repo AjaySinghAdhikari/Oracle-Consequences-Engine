@@ -1,0 +1,786 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ORACLE Consequences Engine</title>
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400;1,700&family=Inter:wght@400;500&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+    <style>
+        :root {
+            --bg: #0c0c0e;
+            --surface: #111116;
+            --surface-2: #18181f;
+            --border: rgba(255,255,255,0.07);
+            --text-1: #f0efe8;
+            --text-2: #8c8a9e;
+            --text-3: #4a4860;
+            --gold: #c9a84c;
+            --positive: #3d6b52;
+            --negative: #6b3d3d;
+            --uncertain: #3d3d52;
+            --pos-text: #7ec8a0;
+            --neg-text: #c87e7e;
+            --unc-text: #9898c8;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            background-color: var(--bg);
+            color: var(--text-1);
+            font-family: 'Inter', sans-serif;
+            font-weight: 400;
+            line-height: 1.8;
+            overflow-x: hidden;
+        }
+
+        ::-webkit-scrollbar { width: 3px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: rgba(201,168,76,0.3); }
+        ::selection { background: rgba(201,168,76,0.2); }
+
+        .bg-gradient {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: radial-gradient(ellipse 800px 600px at 50% 20%, rgba(201,168,76,0.03) 0%, transparent 70%);
+            z-index: -1;
+            pointer-events: none;
+        }
+
+        .mono { font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; color: var(--text-2); }
+        .inter-500 { font-weight: 500; }
+
+        .section-label {
+            font-family: 'Inter', sans-serif;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 3px;
+            color: var(--text-3);
+            font-size: 0.72rem;
+            margin-bottom: 0.5rem;
+        }
+
+        hr.section-rule {
+            border: none;
+            border-top: 1px solid var(--border);
+            margin-bottom: 2rem;
+        }
+
+        .container {
+            max-width: 860px;
+            margin: 0 auto;
+            padding: 0 2rem;
+            position: relative;
+            z-index: 10;
+        }
+
+        .progress-bar-container {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%;
+            height: 2px;
+            background: transparent;
+            z-index: 100;
+        }
+
+        #progress-bar {
+            height: 100%; width: 0%; background: var(--gold);
+            transition: width 0.3s ease;
+        }
+
+        #pipeline-status {
+            position: fixed;
+            top: 6px;
+            width: 100%;
+            text-align: center;
+            z-index: 100;
+            pointer-events: none;
+            color: var(--text-3);
+        }
+
+        /* Input Section */
+        #input-section {
+            padding-top: 15vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .oracle-title {
+            font-size: 4rem;
+            font-family: 'Playfair Display', serif;
+            font-weight: 400;
+            letter-spacing: -1px;
+            color: var(--gold);
+            text-align: center;
+        }
+
+        .oracle-subtitle {
+            font-family: 'Inter', sans-serif;
+            font-size: 0.9rem;
+            color: var(--text-3);
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            text-align: center;
+            margin-bottom: 4rem;
+        }
+
+        textarea {
+            width: 100%;
+            background: transparent;
+            border: none;
+            border-bottom: 1px solid var(--border);
+            font-family: 'Playfair Display', serif;
+            font-style: italic;
+            font-size: 3rem;
+            color: var(--text-1);
+            resize: none;
+            outline: none;
+            overflow: hidden;
+            padding-bottom: 0.5rem;
+            text-align: center;
+            height: 5rem;
+        }
+
+        textarea::placeholder { color: var(--text-3); }
+
+        .example-chips {
+            margin-top: 2rem;
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+            justify-content: center;
+            color: var(--text-3);
+            align-items: center;
+        }
+
+        .example-chips button {
+            background: none; border: none; color: var(--text-3); cursor: pointer;
+            font-family: 'Inter', sans-serif;
+            font-size: 1rem;
+        }
+        .example-chips button:hover { text-decoration: underline; }
+
+        .btn-consult {
+            margin-top: 4rem;
+            font-family: 'JetBrains Mono', monospace;
+            text-transform: uppercase;
+            color: var(--gold);
+            border: 1px solid var(--gold);
+            background: transparent;
+            width: 200px;
+            padding: 1rem;
+            cursor: pointer;
+            transition: all 200ms ease;
+            font-size: 0.9rem;
+        }
+
+        .btn-consult:hover {
+            background: var(--gold);
+            color: var(--bg);
+        }
+
+        .fab-new {
+            position: fixed;
+            bottom: 2rem; right: 2rem;
+            background: transparent;
+            color: var(--text-1);
+            border: 1px solid var(--gold);
+            padding: 0.8rem 1.5rem;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            cursor: pointer;
+            transition: all 200ms ease;
+            z-index: 100;
+        }
+
+        .fab-new:hover {
+            background: var(--gold);
+            color: var(--bg);
+        }
+
+        /* Results */
+        #results-section {
+            padding-top: 4rem;
+            padding-bottom: 4rem;
+        }
+
+        .result-section {
+            opacity: 0;
+            transform: translateY(16px);
+            animation: fadeUp 500ms forwards ease-out;
+            margin-bottom: 48px;
+        }
+
+        @keyframes fadeUp {
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .large-quote {
+            font-size: 1.4rem;
+            font-family: 'Playfair Display', serif;
+            font-style: italic;
+            color: var(--text-1);
+            line-height: 1.6;
+            margin-bottom: 1.5rem;
+        }
+
+        .d3-tooltip {
+            position: absolute;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            padding: 1rem;
+            border-radius: 4px;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.2s;
+            max-width: 300px;
+            font-size: 0.9rem;
+            z-index: 1000;
+            color: var(--text-1);
+        }
+    </style>
+</head>
+<body>
+
+<div class="bg-gradient"></div>
+<div class="progress-bar-container"><div id="progress-bar"></div></div>
+<div id="pipeline-status" class="mono" style="display:none;"></div>
+
+<div class="container">
+    <main id="app">
+        <!-- INPUT SECTION -->
+        <section id="input-section">
+            <div class="oracle-title">ORACLE</div>
+            <div class="oracle-subtitle">Second-Order Consequences Engine</div>
+            
+            <textarea id="decision-input" placeholder="Describe your decision..." oninput="autoGrow(this)" onkeydown="if(event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); startAnalysis(); }"></textarea>
+            
+            <div class="example-chips">
+                <button type="button" onclick="setExample(this.innerText)">Drop out to start a startup</button>
+                <span>&middot;</span>
+                <button type="button" onclick="setExample(this.innerText)">Quit my job</button>
+                <span>&middot;</span>
+                <button type="button" onclick="setExample(this.innerText)">Take the investor money</button>
+                <span>&middot;</span>
+                <button type="button" onclick="setExample(this.innerText)">Confront my co-founder</button>
+                <span>&middot;</span>
+                <button type="button" onclick="setExample(this.innerText)">Pivot the product</button>
+            </div>
+            
+            <button type="button" id="consult-btn" class="btn-consult">Consult Oracle</button>
+        </section>
+
+        <!-- RESULTS SECTION -->
+        <section id="results-section" style="display:none;"></section>
+        
+        <div id="consequence-map-section" style="display:none; margin-bottom: 6rem;"></div>
+    </main>
+</div>
+
+<button class="fab-new" id="fab-new" onclick="resetApp()" style="display:none;">New Decision</button>
+<div id="d3-tooltip" class="d3-tooltip"></div>
+
+<script>
+    console.log('ORACLE JS loaded');
+    
+    document.addEventListener('DOMContentLoaded', () => {
+        const btn = document.getElementById('consult-btn');
+        if (btn) {
+            btn.addEventListener('click', startAnalysis);
+            btn.addEventListener('click', () => console.log('button clicked'));
+        }
+    });
+
+    function autoGrow(el) {
+        el.style.height = "5px";
+        el.style.height = (el.scrollHeight) + "px";
+    }
+
+    function setExample(text) {
+        const input = document.getElementById('decision-input');
+        input.value = text;
+        autoGrow(input);
+    }
+
+    const agentMap = {
+        'cartograph': 'CARTOGRAPHER — mapping decision space...',
+        'historian': 'HISTORIAN — analyzing base rates...',
+        'simulate': 'SIMULATOR — projecting cascading effects...',
+        'challenge': 'DEVIL\'S ADVOCATE — stress-testing assumptions...',
+        'reframe': 'REFRAMER — identifying hidden variables...',
+        'synthesize': 'ORACLE — finalizing verdict...'
+    };
+
+    function updatePipelineStep(step, status) {
+        const stepsOrder = ['cartograph', 'historian', 'simulate', 'challenge', 'reframe', 'synthesize', 'complete'];
+        let idx = stepsOrder.indexOf(step);
+        if (idx === -1) idx = 0;
+        
+        let pct = (idx / (stepsOrder.length - 1)) * 100;
+        if (step === 'complete' || status === 'complete') pct = 100;
+        document.getElementById('progress-bar').style.width = pct + '%';
+        
+        const statusText = agentMap[step] || status || '';
+        const statusEl = document.getElementById('pipeline-status');
+        if (pct > 0 && pct < 100) {
+            statusEl.style.display = 'block';
+            statusEl.innerText = statusText;
+        } else {
+            statusEl.style.display = 'none';
+        }
+    }
+
+    function startAnalysis() {
+        const decisionInput = document.getElementById('decision-input');
+        const decision = decisionInput.value.trim();
+        if (!decision) {
+            decisionInput.style.borderBottomColor = 'var(--gold)';
+            setTimeout(() => { decisionInput.style.borderBottomColor = 'var(--border)'; }, 1000);
+            return;
+        }
+
+        const inputSection = document.getElementById('input-section');
+        inputSection.style.transition = 'opacity 0.5s ease';
+        inputSection.style.opacity = '0';
+        
+        setTimeout(() => {
+            inputSection.style.display = 'none';
+            const results = document.getElementById('results-section');
+            results.style.display = 'block';
+            results.innerHTML = '';
+            document.getElementById('consequence-map-section').style.display = 'none';
+            document.getElementById('consequence-map-section').innerHTML = '';
+            document.getElementById('fab-new').style.display = 'none';
+            
+            updatePipelineStep('', 'Initializing...');
+
+            const url = `/api/analyze?decision=${encodeURIComponent(decision)}`;
+            const source = new EventSource(url);
+            
+            source.onopen = () => console.log('SSE connected');
+            
+            source.onmessage = (e) => {
+                try {
+                    const msg = JSON.parse(e.data);
+                    if (msg.step && msg.step !== 'complete') {
+                        updatePipelineStep(msg.step, msg.status);
+                    }
+                    if (msg.data) renderAgentResult(msg.step, msg.data);
+                    if (msg.step === 'complete' || msg.status === 'complete' || msg.status === 'error') {
+                        source.close();
+                        updatePipelineStep('complete', 'Complete');
+                        document.getElementById('fab-new').style.display = 'block';
+                    }
+                } catch(err) {
+                    console.error(err);
+                    source.close();
+                }
+            };
+
+            source.onerror = (e) => {
+                source.close();
+                document.getElementById('fab-new').style.display = 'block';
+            };
+        }, 500);
+    }
+
+    function createSection(id, label) {
+        const container = document.getElementById('results-section');
+        let section = document.getElementById(`section-${id}`);
+        if (!section) {
+            section = document.createElement('div');
+            section.id = `section-${id}`;
+            section.className = 'result-section';
+            
+            let html = `<div class="section-label">${label}</div><hr class="section-rule">`;
+            html += `<div id="content-${id}"></div>`;
+            section.innerHTML = html;
+            container.appendChild(section);
+            
+            // smooth scroll to it
+            setTimeout(() => {
+                const rect = section.getBoundingClientRect();
+                window.scrollTo({
+                    top: window.scrollY + rect.top - 60,
+                    behavior: 'smooth'
+                });
+            }, 100);
+        }
+        return document.getElementById(`content-${id}`);
+    }
+
+    function renderAgentResult(step, data) {
+        if (step === 'cartograph') {
+            const content = createSection('cartograph', 'CARTOGRAPHER');
+            const st = (data.stakeholders || []).join(', ');
+            const dm = (data.domains || []).join(', ');
+            const type = data.decision_type || 'UNKNOWN';
+            let html = `
+                <div class="large-quote">"${data.decision_restated || ''}"</div>
+                <div style="margin-bottom: 1rem;">
+                    <div style="color:var(--text-2); font-size:1rem;">Stakeholders: ${st}</div>
+                    <div style="color:var(--text-2); font-size:1rem;">Domains: ${dm}</div>
+                </div>
+                <div style="margin-bottom: 2rem;">
+                    ${(data.hidden_assumptions || []).map((a, i) => `
+                        <div style="border-left: 2px solid var(--negative); padding-left: 1rem; margin-bottom: 0.5rem; color: var(--text-1);">
+                            ${i + 1}. ${a}
+                        </div>
+                    `).join('')}
+                </div>
+                <div class="mono" style="text-transform: uppercase;">${type}</div>
+            `;
+            content.innerHTML = html;
+        }
+        else if (step === 'historian') {
+            const content = createSection('historian', 'HISTORIAN');
+            let tableRows = (data.historical_precedents || []).map((p, i) => `
+                <tr style="background: ${i%2===1 ? 'rgba(255,255,255,0.015)' : 'transparent'}; border-bottom: 1px solid var(--border);">
+                    <td style="padding: 1rem 0.5rem;">${p.case_description}</td>
+                    <td style="padding: 1rem 0.5rem;">${p.what_happened}</td>
+                    <td style="padding: 1rem 0.5rem;">${p.key_lesson}</td>
+                </tr>
+            `).join('');
+            
+            let html = `
+                <div style="font-size: 1.1rem; margin-bottom: 2rem;">${data.base_rate_insight || ''}</div>
+                <table style="width: 100%; border-collapse: collapse; margin-bottom: 2rem; font-size: 0.95rem;">
+                    <thead>
+                        <tr style="border-bottom: 1px solid var(--border); text-align: left; color: var(--text-3); font-family: 'JetBrains Mono', monospace; font-size: 0.75rem;">
+                            <th style="padding: 0.5rem; font-weight: normal;">Case</th>
+                            <th style="padding: 0.5rem; font-weight: normal;">What happened</th>
+                            <th style="padding: 0.5rem; font-weight: normal;">Key lesson</th>
+                        </tr>
+                    </thead>
+                    <tbody>${tableRows}</tbody>
+                </table>
+                <div style="font-style: italic; color: var(--text-2);">— ${data.surprising_finding || ''}</div>
+            `;
+            content.innerHTML = html;
+        }
+        else if (step === 'simulate') {
+            const content = createSection('simulate', 'SIMULATOR');
+            const horizons = ['0-3 months', '3-12 months', '1-3 years', '3-10 years'];
+            const hLabels = ['0 — 3 MONTHS', '3 — 12 MONTHS', '1 — 3 YEARS', '3 — 10 YEARS'];
+            
+            let horizonsHtml = horizons.map((h, i) => {
+                const cons = (data.consequences || []).filter(c => c.horizon === h || (!c.horizon && i===0));
+                if (cons.length === 0) return '';
+                return `
+                    <div style="margin-bottom: 32px;">
+                        <div class="mono" style="color: var(--text-3); margin-bottom: 1rem; text-transform: uppercase;">${hLabels[i]}</div>
+                        <div style="display: flex; flex-direction: column; gap: 12px;">
+                            ${cons.map(c => {
+                                let color = 'var(--uncertain)';
+                                if (c.type === 'positive') color = 'var(--positive)';
+                                if (c.type === 'negative') color = 'var(--negative)';
+                                return `
+                                <div style="border-left: 2px solid ${color}; padding-left: 1rem;">
+                                    <div style="color: var(--text-1); margin-bottom: 0.2rem;">${c.description}</div>
+                                    <div class="mono" style="color: var(--text-3);">
+                                        ${Math.round((c.probability||0)*100)}% likely &middot; severity ${c.severity||1}/10
+                                    </div>
+                                </div>
+                                `;
+                            }).join('')}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            let chainsHtml = (data.top_cascade_chains || []).map(chain => `
+                <div class="mono" style="color: var(--text-2); margin-bottom: 0.5rem; white-space: pre-wrap;">${chain.join(' <span style="color:var(--gold);">→</span> ')}</div>
+            `).join('');
+
+            let html = `
+                ${horizonsHtml}
+                <div style="margin-top: 3rem;">
+                    <div class="section-label" style="margin-bottom: 1rem;">CASCADE CHAINS</div>
+                    ${chainsHtml}
+                </div>
+            `;
+            content.innerHTML = html;
+        }
+        else if (step === 'challenge') {
+            const section = document.getElementById('section-challenge') || createSection('challenge', "DEVIL'S ADVOCATE").parentElement;
+            section.style.background = 'rgba(107,61,61,0.15)';
+            section.style.border = '1px solid rgba(200,126,126,0.15)';
+            section.style.padding = '2rem';
+            section.style.borderRadius = '4px';
+
+            const content = document.getElementById('content-challenge');
+            let biases = (data.cognitive_biases || []).join(', ');
+            
+            let html = `
+                <div style="margin-bottom: 2rem;">
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; border-bottom: 1px solid rgba(200,126,126,0.15); padding-bottom: 0.5rem; margin-bottom: 0.5rem;">
+                        <div class="mono" style="color: var(--text-3); text-transform: uppercase;">ASSUMPTION</div>
+                        <div class="mono" style="color: var(--neg-text); text-transform: uppercase;">REALITY</div>
+                    </div>
+                    ${(data.false_assumptions || []).map(a => `
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; border-bottom: 1px solid rgba(200,126,126,0.15); padding: 0.8rem 0;">
+                            <div>${a.assumption}</div>
+                            <div style="color: var(--neg-text);">${a.reality}</div>
+                        </div>
+                    `).join('')}
+                </div>
+                
+                <div style="margin-bottom: 2rem;">
+                    <div class="section-label">COGNITIVE BIASES</div>
+                    <div style="font-style: italic; color: var(--text-2);">${biases}</div>
+                </div>
+
+                <div style="margin-bottom: 2rem;">
+                    <div class="mono" style="color: var(--neg-text); margin-bottom: 0.5rem; text-transform: uppercase;">WORST CASE SCENARIO</div>
+                    <p style="color: var(--neg-text);">${data.worst_case_scenario || ''}</p>
+                </div>
+
+                <div style="margin-bottom: 3rem; font-family: 'Playfair Display', serif; font-style: italic; font-size: 1.6rem; color: var(--text-1); border-left: 2px solid var(--neg-text); padding-left: 1.5rem; line-height: 1.4;">
+                    ${data.uncomfortable_truth || ''}
+                </div>
+
+                <div>
+                    ${(data.critical_questions || []).map((q, i) => `
+                        <div style="font-size: 1.1rem; font-family: 'Inter', sans-serif; margin-bottom: 1rem; display: flex; gap: 1rem;">
+                            <div class="mono" style="color: var(--gold); font-size: 1.1rem;">${i+1}.</div>
+                            <div>${q}</div>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+            content.innerHTML = html;
+        }
+        else if (step === 'reframe') {
+            const section = document.getElementById('section-reframe') || createSection('reframe', 'REFRAMER').parentElement;
+            section.style.background = 'rgba(61,61,82,0.3)';
+            section.style.padding = '2rem';
+            section.style.borderRadius = '4px';
+
+            const content = document.getElementById('content-reframe');
+            
+            let html = `
+                <div style="font-style: italic; color: var(--text-2); margin-bottom: 3rem;">
+                    False Dichotomy: ${data.false_dichotomy || ''}
+                </div>
+
+                <div style="margin-bottom: 3rem;">
+                    ${(data.alternative_decisions || []).map((d, i) => `
+                        <div style="border-bottom: 1px solid var(--border); padding-bottom: 1rem; margin-bottom: 1rem;">
+                            <div style="display: flex; gap: 1rem;">
+                                <div class="mono" style="color: var(--text-3); font-size: 1rem;">${i+1}.</div>
+                                <div>
+                                    <div class="inter-500" style="margin-bottom: 0.3rem;">${d.decision}</div>
+                                    <div style="color: var(--text-2);">${d.rationale}</div>
+                                </div>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+
+                <div style="text-align: center; font-family: 'Playfair Display', serif; font-style: italic; font-size: 1.6rem; color: var(--gold); padding: 3rem 0; line-height: 1.4;">
+                    ${data.reframed_question || ''}
+                </div>
+
+                <div style="border: 1px dashed var(--gold); padding: 1.5rem;">
+                    <div class="mono" style="margin-bottom: 0.5rem; text-transform: uppercase;">MINIMUM VIABLE TEST</div>
+                    <div style="font-family: 'Inter', sans-serif;">${data.minimum_viable_test || ''}</div>
+                </div>
+            `;
+            content.innerHTML = html;
+        }
+        else if (step === 'synthesize') {
+            const content = createSection('synthesize', 'ORACLE VERDICT');
+            let confStr = String(data.confidence_level || '0');
+            let confNum = parseInt(confStr.replace('%', '')) || 0;
+
+            let html = `
+                <div style="font-size: 1.4rem; font-family: 'Inter', sans-serif; color: var(--text-1); margin-bottom: 2rem;">
+                    ${data.recommendation || ''}
+                </div>
+
+                <div style="margin-bottom: 4rem;">
+                    <div class="mono" style="color: var(--gold); margin-bottom: 0.5rem;">CONFIDENCE: ${confNum}%</div>
+                    <div style="width: 100%; height: 4px; background: rgba(201,168,76,0.1);">
+                        <div style="width: ${confNum}%; height: 100%; background: var(--gold);"></div>
+                    </div>
+                </div>
+
+                <div style="text-align: center; padding: 48px 0; border-top: 1px solid rgba(201,168,76,0.3); border-bottom: 1px solid rgba(201,168,76,0.3); margin-bottom: 4rem;">
+                    <div style="font-family: 'Playfair Display', serif; font-style: italic; font-size: 2rem; color: var(--gold); line-height: 1.3;">
+                        ${data.the_one_question || ''}
+                    </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 4rem; margin-bottom: 4rem;">
+                    <div>
+                        <div class="section-label" style="margin-bottom: 1rem;">TOP RISKS</div>
+                        <div style="display: flex; flex-direction: column; gap: 1rem;">
+                            ${(data.top_risks || []).map((r, i) => {
+                                let parts = r.split(':');
+                                let title = parts[0] ? parts[0].trim() : '';
+                                let desc = parts.length > 1 ? parts.slice(1).join(':').trim() : '';
+                                if (!desc) { desc = title; title = \`Risk \${i+1}\`; }
+                                return \`
+                                    <div style="display: flex; gap: 1rem;">
+                                        <div class="mono" style="color: var(--text-3); font-size: 1rem;">\${i+1}.</div>
+                                        <div>
+                                            <div class="inter-500" style="margin-bottom: 0.2rem;">\${title}</div>
+                                            <div style="color: var(--text-2); font-size: 0.95rem;">\${desc}</div>
+                                        </div>
+                                    </div>
+                                \`;
+                            }).join('')}
+                        </div>
+                    </div>
+                    <div>
+                        <div class="section-label" style="margin-bottom: 1rem; color: var(--pos-text);">TOP OPPORTUNITIES</div>
+                        <div style="display: flex; flex-direction: column; gap: 1rem; color: var(--pos-text);">
+                            ${(data.top_opportunities || []).map((o, i) => {
+                                let parts = o.split(':');
+                                let title = parts[0] ? parts[0].trim() : '';
+                                let desc = parts.length > 1 ? parts.slice(1).join(':').trim() : '';
+                                if (!desc) { desc = title; title = \`Opportunity \${i+1}\`; }
+                                return \`
+                                    <div style="display: flex; gap: 1rem;">
+                                        <div class="mono" style="color: rgba(126,200,160,0.5); font-size: 1rem;">\${i+1}.</div>
+                                        <div>
+                                            <div class="inter-500" style="margin-bottom: 0.2rem;">\${title}</div>
+                                            <div style="color: rgba(126,200,160,0.8); font-size: 0.95rem;">\${desc}</div>
+                                        </div>
+                                    </div>
+                                \`;
+                            }).join('')}
+                        </div>
+                    </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 0; margin-bottom: 4rem; border: 1px solid var(--border);">
+                    ${['0 — 3 MONTHS', '3 — 12 MONTHS', '1 — 3 YEARS', '3 — 10 YEARS'].map((h, i) => `
+                        <div style="padding: 1.5rem; border-right: ${i < 3 ? '1px solid var(--border)' : 'none'};">
+                            <div class="mono" style="margin-bottom: 1rem; text-transform: uppercase;">${h}</div>
+                            <div style="font-size: 0.9rem; color: var(--text-2);">Phase outlook based on simulated cascades and base rates.</div>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+            content.innerHTML = html;
+            
+            if (data.decision_tree) {
+                document.getElementById('consequence-map-section').style.display = 'block';
+                document.getElementById('consequence-map-section').classList.add('result-section');
+                renderD3Tree(data.decision_tree);
+            }
+        }
+    }
+
+    function renderD3Tree(treeData) {
+        const container = document.getElementById('consequence-map-section');
+        container.innerHTML = `<div class="section-label">CONSEQUENCE MAP</div><hr class="section-rule"><div id="d3-wrapper" style="background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 2rem; overflow-x: auto;"><div id="d3-svg-container" style="min-width: 900px;"></div></div>`;
+        
+        const width = 900;
+        const root = d3.hierarchy(treeData);
+        const leavesCount = root.leaves().length;
+        const height = Math.max(600, leavesCount * 40);
+
+        const svg = d3.select("#d3-svg-container").append("svg")
+            .attr("width", width)
+            .attr("height", height)
+            .attr("viewBox", [0, 0, width, height])
+            .append("g")
+            .attr("transform", "translate(100, 20)");
+
+        const treeLayout = d3.tree().size([height - 40, width - 200]);
+        treeLayout(root);
+
+        const link = svg.selectAll(".link")
+            .data(root.links())
+            .enter().append("path")
+            .attr("class", "link")
+            .attr("fill", "none")
+            .attr("stroke", "var(--border)")
+            .attr("stroke-width", 1)
+            .attr("d", d3.linkHorizontal().x(d => d.y).y(d => d.x))
+            .style("opacity", 0);
+            
+        link.transition().duration(800).delay((d,i) => i * 10).style("opacity", 1);
+
+        const node = svg.selectAll(".node")
+            .data(root.descendants())
+            .enter().append("g")
+            .attr("class", "node")
+            .attr("transform", d => \`translate(\${d.y},\${d.x})\`)
+            .style("opacity", 0);
+
+        node.transition().duration(800).delay((d,i) => i * 10).style("opacity", 1);
+
+        node.append("circle")
+            .attr("r", d => {
+                let p = d.data.probability || 0.5;
+                let s = d.data.severity || 5;
+                let val = (p * s) / 10;
+                return 6 + (val * 18);
+            })
+            .attr("fill", d => {
+                if (d.data.type === 'positive') return 'var(--positive)';
+                if (d.data.type === 'negative') return 'var(--negative)';
+                return 'var(--uncertain)';
+            })
+            .attr("stroke", d => {
+                if (d.data.type === 'positive') return 'var(--pos-text)';
+                if (d.data.type === 'negative') return 'var(--neg-text)';
+                return 'var(--unc-text)';
+            })
+            .attr("stroke-width", 1)
+            .on("mouseover", function(event, d) {
+                d3.select(this).attr("stroke", "#fff");
+                const tooltip = document.getElementById('d3-tooltip');
+                tooltip.style.opacity = 1;
+                tooltip.innerHTML = \`
+                    <div style="font-family: 'Inter', sans-serif; margin-bottom: 0.5rem;">\${d.data.description || d.data.name || 'Consequence'}</div>
+                    <div class="mono" style="color: var(--gold);">Probability: \${Math.round((d.data.probability||0)*100)}%</div>
+                \`;
+                tooltip.style.left = (event.pageX + 15) + "px";
+                tooltip.style.top = (event.pageY - 28) + "px";
+            })
+            .on("mouseout", function(event, d) {
+                d3.select(this).attr("stroke", d => {
+                    if (d.data.type === 'positive') return 'var(--pos-text)';
+                    if (d.data.type === 'negative') return 'var(--neg-text)';
+                    return 'var(--unc-text)';
+                });
+                document.getElementById('d3-tooltip').style.opacity = 0;
+            });
+
+        node.append("text")
+            .attr("dy", "0.31em")
+            .attr("x", d => d.children ? -12 : 12)
+            .style("text-anchor", d => d.children ? "end" : "start")
+            .text(d => {
+                let n = d.data.name || d.data.description || '';
+                return n.length > 40 ? n.substring(0,40)+'...' : n;
+            })
+            .style("font-family", "'JetBrains Mono', monospace")
+            .style("font-size", "10px")
+            .style("fill", "var(--text-2)");
+    }
+
+    function resetApp() {
+        const inputSection = document.getElementById('input-section');
+        inputSection.style.transition = 'none';
+        inputSection.style.opacity = '1';
+        inputSection.style.display = 'flex';
+        
+        document.getElementById('results-section').style.display = 'none';
+        document.getElementById('consequence-map-section').style.display = 'none';
+        document.getElementById('fab-new').style.display = 'none';
+        document.getElementById('progress-bar').style.width = '0%';
+        document.getElementById('pipeline-status').style.display = 'none';
+        document.getElementById('decision-input').value = '';
+        autoGrow(document.getElementById('decision-input'));
+    }
+</script>
+</body>
+</html>
