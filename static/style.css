@@ -407,3 +407,25 @@ body {
   .two-col { grid-template-columns: 1fr; gap: 2rem; }
   .timeline-row { grid-template-columns: 1fr 1fr; }
 }
+
+/* Accordion styles */
+.accordion-row {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 1.25rem 0; cursor: pointer;
+  border-bottom: 1px solid rgba(255,255,255,0.07);
+  font-family: JetBrains Mono, monospace;
+  font-size: 0.75rem; letter-spacing: 3px;
+  color: #4a4860; transition: color 0.2s;
+}
+.accordion-row:hover { color: #f0efe8; }
+.accordion-row.open { color: #c9a84c; }
+.accordion-icon { font-size: 1.2rem; color: #c9a84c; transition: transform 0.3s; }
+.accordion-row.open .accordion-icon { transform: rotate(45deg); }
+.accordion-body { display: none; padding: 2rem 0; }
+.accordion-body.open { display: block; }
+
+.verdict-card {
+  border: 1px solid rgba(201,168,76,0.2);
+  padding: 2.5rem; margin-bottom: 3rem;
+  background: rgba(201,168,76,0.03);
+}

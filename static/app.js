@@ -254,37 +254,49 @@ function renderReframer(d) {
   showSection('section-reframer');
 }
 
+function toggleAccordion(rowEl, bodyEl) {
+  var isOpen = rowEl.classList.contains('open');
+  document.querySelectorAll('.accordion-row').forEach(function(r) { r.classList.remove('open'); });
+  document.querySelectorAll('.accordion-body').forEach(function(b) { b.classList.remove('open'); });
+  if (!isOpen) {
+    rowEl.classList.add('open');
+    bodyEl.classList.add('open');
+  }
+}
+
 function renderVerdict(d) {
-  var confidence = parseInt(d.confidence_level) || 0;
-  var risks = (d.top_risks||[]).map(function(r) {
-    var name = typeof r === 'string' ? r : (r.risk || r.name || '');
-    var desc = typeof r === 'object' ? (r.description || r.explanation || '') : '';
-    return '<div class="risk-item"><div class="risk-name">' + esc(name) + '</div>'
-         + (desc ? '<div class="risk-desc">' + esc(desc) + '</div>' : '') + '</div>';
-  }).join('');
+  var confidence = parseInt(String(d.confidence_level).replace(/[^0-9]/g, '')) || 0;
 
-  var opps = (d.top_opportunities||[]).map(function(o) {
-    var name = typeof o === 'string' ? o : (o.opportunity || o.name || '');
-    var desc = typeof o === 'object' ? (o.description || o.explanation || '') : '';
-    return '<div class="opp-item"><div class="opp-name">' + esc(name) + '</div>'
-         + (desc ? '<div class="opp-desc">' + esc(desc) + '</div>' : '') + '</div>';
-  }).join('');
-
-  var timelines = Object.entries(d.timeline_summary||{}).map(function(entry) {
-    return '<div class="timeline-cell"><div class="timeline-horizon">' + esc(entry[0]) + '</div>'
-         + '<div class="timeline-text">' + esc(entry[1]) + '</div></div>';
-  }).join('');
-
-  var html = makeSection("ORACLE'S VERDICT",
-    '<div class="recommendation-text">' + esc(d.recommendation||'') + '</div>'
+  var verdictHtml = '<div class="verdict-card">'
+    + '<div class="recommendation-text">' + esc(d.recommendation||'') + '</div>'
     + '<div class="confidence-bar-container">'
     + '<div class="confidence-label">CONFIDENCE: ' + confidence + '%</div>'
     + '<div class="confidence-track"><div class="confidence-fill" style="width:' + confidence + '%"></div></div>'
     + '</div>'
     + (d.the_one_question ? '<div class="the-one-question"><div class="one-q-label">THE ONE QUESTION TO ANSWER FIRST</div><div class="one-q-text">' + esc(d.the_one_question) + '</div></div>' : '')
-    + (risks || opps ? '<div class="two-col"><div><div class="col-label">TOP RISKS</div>' + risks + '</div><div><div class="col-label">OPPORTUNITIES</div>' + opps + '</div></div>' : '')
-    + (timelines ? '<div class="section-label" style="margin-top:2rem;margin-bottom:1rem">TIMELINE OUTLOOK</div><div class="timeline-row">' + timelines + '</div>' : '')
-  );
+    + '</div>';
+
+  var sections = [
+    { id: 'section-cartographer', title: 'CARTOGRAPHER — DECISION MAP' },
+    { id: 'section-historian', title: 'HISTORIAN — HISTORICAL PRECEDENTS' },
+    { id: 'section-simulator', title: 'SIMULATOR — CONSEQUENCE MAP' },
+    { id: 'section-advocate', title: 'DEVIL\'S ADVOCATE — BLIND SPOTS' },
+    { id: 'section-reframer', title: 'REFRAMER — THE THIRD OPTION' }
+  ];
+
+  var accHtml = '';
+  sections.forEach(function(s) {
+    var sourceEl = document.getElementById(s.id);
+    var content = sourceEl.innerHTML;
+    sourceEl.innerHTML = '';
+    sourceEl.classList.add('hidden');
+    
+    accHtml += '<div class="accordion-row" onclick="toggleAccordion(this, this.nextElementSibling)">'
+             + s.title + '<span class="accordion-icon">+</span></div>'
+             + '<div class="accordion-body">' + content + '</div>';
+  });
+
+  var html = verdictHtml + accHtml;
   var el = document.getElementById('section-verdict');
   el.innerHTML = html;
   showSection('section-verdict');
