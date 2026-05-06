@@ -265,7 +265,10 @@ function toggleAccordion(rowEl, bodyEl) {
 }
 
 function renderVerdict(d) {
-  var confidence = parseInt(String(d.confidence_level).replace(/[^0-9]/g, '')) || 0;
+  var rawConf = String(d.confidence_level || '0');
+  var match = rawConf.match(/\d+/);
+  var confidence = match ? parseInt(match[0]) : 0;
+  if (confidence > 100) confidence = Math.round(confidence / 10);
 
   var verdictHtml = '<div class="verdict-card">'
     + '<div class="recommendation-text">' + esc(d.recommendation||'') + '</div>'
@@ -300,6 +303,8 @@ function renderVerdict(d) {
   var el = document.getElementById('section-verdict');
   el.innerHTML = html;
   showSection('section-verdict');
+  
+  document.querySelector('.confidence-fill').style.width = confidence + '%';
 
   if (d.decision_tree) {
     renderD3Tree(d.decision_tree);
