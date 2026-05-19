@@ -1,6 +1,6 @@
 # ORACLE — Second-Order Consequences Engine
 
-
+*Every decision has a shadow. ORACLE shows you what is hiding in it.*
 
 ![Demo Placeholder](demo.gif)
 
